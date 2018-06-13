@@ -270,16 +270,17 @@ static void pushLuaValueT(lua_State* L, int t, union luaValueT v)
 static size_t readerCallback( void *ptr, size_t size, size_t nmemb, void *stream)
 {
 	const char* readBytes;
+	size_t len = 0;
 	curlT* c=(curlT*)stream;
 	lua_rawgeti(c->L, LUA_REGISTRYINDEX, c->freaderRef);
 	pushLuaValueT(c->L, c->rudtype, c->rud);
 	lua_pushnumber(c->L, size * nmemb);
 	lua_call(c->L, 2, 1);
-	readBytes=lua_tostring(c->L, -1);
+	readBytes=lua_tolstring(c->L, -1,&len);
 	if (readBytes)
 	{
-		memcpy(ptr, readBytes, lua_strlen(c->L, -1));
-		return lua_strlen(c->L, -1);
+		memcpy(ptr, readBytes, len);
+		return len;
 	}
 	return 0;
 }
@@ -350,8 +351,9 @@ static int lcurl_escape(lua_State* L)
 {
 	if (!lua_isnil(L, 1))
 	{
-		const char* s=luaL_checkstring(L, 1);
-		lua_pushstring(L, curl_escape(s, (int)lua_strlen(L, 1)));
+		size_t len = 0;
+		const char* s=luaL_checklstring(L, 1,&len);
+		lua_pushstring(L, curl_escape(s, len));
 		return 1;
 	} else
 	{
@@ -365,8 +367,9 @@ static int lcurl_unescape(lua_State* L)
 {
 	if (!lua_isnil(L, 1))
 	{
-		const char* s=luaL_checkstring(L, 1);
-		lua_pushstring(L, curl_unescape(s, (int)lua_strlen(L, 1)));
+		size_t len = 0;
+		const char* s=luaL_checklstring(L, 1,&len);
+		lua_pushstring(L, curl_unescape(s, len));
 		return 1;
 	} else
 	{
@@ -810,7 +813,7 @@ static int lcurl_gc(lua_State* L)
 }
 
 
-static const struct luaL_reg luacurl_meths[] =
+static const struct luaL_Reg luacurl_meths[] =
 {
 	{"close", lcurl_easy_close},
 	{"setopt", lcurl_easy_setopt},
@@ -820,7 +823,7 @@ static const struct luaL_reg luacurl_meths[] =
 	{0, 0}
 };
 
-static const struct luaL_reg luacurl_funcs[] =
+static const struct luaL_Reg luacurl_funcs[] =
 {
 	{"new", lcurl_easy_init},
 	{"escape", lcurl_escape},
@@ -1085,8 +1088,8 @@ LUACURL_API int luaopen_luacurl (lua_State *L)
 {  
 	curl_global_init(CURL_GLOBAL_ALL); /* In windows, this will init the winsock stuff */
 	createmeta(L);
-	luaL_openlib (L, 0, luacurl_meths, 0);
-	luaL_openlib (L, LUACURL_LIBNAME, luacurl_funcs, 0);
+	luaL_setfuncs(L,luacurl_meths, 0);
+	luaL_newlib(L,luacurl_funcs);
 	set_info(L);
 	setcurlerrors(L);
 	setcurloptions(L);
